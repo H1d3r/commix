@@ -43,12 +43,14 @@ from src.thirdparty.colorama import Fore, Back, Style, init
 """
 Do a request to target URL.
 """
-def crawler_request(url):
+def crawler_request(url, http_request_method):
   try:
-    if menu.options.data:
-      request = _urllib.request.Request(url, menu.options.data.encode(settings.DEFAULT_CODEC), method=http_request_method)
+    # Check if defined POST data
+    if settings.USER_DEFINED_POST_DATA:
+      data = settings.USER_DEFINED_POST_DATA.encode(settings.DEFAULT_CODEC)
     else:
-      request = _urllib.request.Request(url, method=http_request_method)
+      data = None
+    request = _urllib.request.Request(url, data, method=http_request_method)
     headers.do_check(request)
     headers.check_http_traffic(request)
     if menu.options.proxy or menu.options.ignore_proxy or menu.options.tor: 
@@ -65,7 +67,12 @@ def crawler_request(url):
     if url not in settings.HREF_SKIPPED:
       settings.HREF_SKIPPED.append(url)
       settings.CRAWLED_SKIPPED_URLS_NUM += 1
-      request_failed(err_msg)
+      if settings.SITEMAP_XML_FILE in url and settings.NOT_FOUND_ERROR in str(err_msg):
+        warn_msg = "'" + settings.SITEMAP_XML_FILE + "' not found."
+        settings.print_data_to_stdout(settings.print_warning_msg(warn_msg))
+      else:
+        request_failed(err_msg)
+
 
 """
 Estimating the response time (in seconds).
@@ -75,8 +82,8 @@ def estimate_response_time(url, timesec, http_request_method):
   _ = False
   if settings.VERBOSITY_LEVEL != 0:
     debug_msg = "Estimating the target URL response time. "
-    sys.stdout.write(settings.print_debug_msg(debug_msg))
-    sys.stdout.flush()
+    settings.print_data_to_stdout(settings.print_debug_msg(debug_msg))
+    
   # Check if defined POST data
   if menu.options.data:
     request = _urllib.request.Request(url, menu.options.data.replace(settings.TESTABLE_VALUE + settings.INJECT_TAG, settings.TESTABLE_VALUE).encode(settings.DEFAULT_CODEC), method=http_request_method)
@@ -91,13 +98,11 @@ def estimate_response_time(url, timesec, http_request_method):
     response.close()
     _ = True
   except _http_client.InvalidURL as err_msg:
-    print(settings.print_critical_msg(err_msg))
+    settings.print_data_to_stdout(settings.print_critical_msg(err_msg))
     raise SystemExit()
 
   except _urllib.error.HTTPError as err:
     ignore_start = time.time()
-    if settings.VERBOSITY_LEVEL != 0:
-      print(settings.SINGLE_WHITESPACE)
     if settings.UNAUTHORIZED_ERROR in str(err) and int(settings.UNAUTHORIZED_ERROR) in settings.IGNORE_CODE:
       pass
     else:
@@ -107,7 +112,7 @@ def estimate_response_time(url, timesec, http_request_method):
       except IndexError:
         err_msg += " (" + str(err) + ")."
       if str(err.getcode()) != settings.UNAUTHORIZED_ERROR:
-        print(settings.print_critical_msg(err_msg))
+        settings.print_data_to_stdout(settings.print_critical_msg(err_msg))
       # Check for HTTP Error 401 (Unauthorized).
       else:
         try:
@@ -117,7 +122,7 @@ def estimate_response_time(url, timesec, http_request_method):
           auth_type = auth_line.split()[0]
           # Checking for the realm attribute.
           try:
-            auth_obj = re.match('''(\w*)\s+realm=(.*)''', auth_line).groups()
+            auth_obj = re.match(r'''(\w*)\s+realm=(.*)''', auth_line).groups()
             realm = auth_obj[1].split(',')[0].replace("\"", "")
           except:
             realm = False
@@ -125,14 +130,14 @@ def estimate_response_time(url, timesec, http_request_method):
         except ValueError:
           err_msg = "The identified HTTP authentication type (" + str(auth_type) + ") "
           err_msg += "is not yet supported."
-          print(settings.print_critical_msg(err_msg) + "\n")
+          settings.print_data_to_stdout(settings.print_critical_msg(err_msg))
           raise SystemExit()
 
         except IndexError:
           err_msg = "The provided pair of " + str(menu.options.auth_type)
           err_msg += " HTTP authentication credentials '" + str(menu.options.auth_cred) + "'"
           err_msg += " seems to be invalid."
-          print(settings.print_critical_msg(err_msg))
+          settings.print_data_to_stdout(settings.print_critical_msg(err_msg))
           raise SystemExit()
 
         if menu.options.auth_type and menu.options.auth_type != auth_type.lower():
@@ -151,14 +156,14 @@ def estimate_response_time(url, timesec, http_request_method):
             menu.options.auth_cred = stored_auth_creds
             info_msg = "Identified a previously stored valid pair of credentials '"
             info_msg += menu.options.auth_cred + Style.RESET_ALL + Style.BRIGHT  + "'."
-            print(settings.print_bold_info_msg(info_msg))
+            settings.print_data_to_stdout(settings.print_bold_info_msg(info_msg))
           else:
             # Basic authentication
             if menu.options.auth_type.lower() == settings.AUTH_TYPE.BASIC:
               if not int(settings.UNAUTHORIZED_ERROR) in settings.IGNORE_CODE:
                 warn_msg = menu.options.auth_type.capitalize() + " "
                 warn_msg += "HTTP authentication credentials are required."
-                print(settings.print_warning_msg(warn_msg))
+                settings.print_data_to_stdout(settings.print_warning_msg(warn_msg))
                 while True:
                   message = "Do you want to perform a dictionary-based attack? [Y/n] > "
                   do_update = common.read_input(message, default="Y", check_batch=True)
@@ -183,11 +188,11 @@ def estimate_response_time(url, timesec, http_request_method):
               if not int(settings.UNAUTHORIZED_ERROR) in settings.IGNORE_CODE:
                 warn_msg = menu.options.auth_type.capitalize() + " "
                 warn_msg += "HTTP authentication credentials are required."
-                print(settings.print_warning_msg(warn_msg))
-                # Check if heuristics have failed to identify the realm attribute.
+                settings.print_data_to_stdout(settings.print_warning_msg(warn_msg))
+                # Check if failed to identify the realm attribute.
                 if not realm:
-                  warn_msg = "Heuristics have failed to identify the realm attribute."
-                  print(settings.print_warning_msg(warn_msg))
+                  warn_msg = "Failed to identify the realm attribute."
+                  settings.print_data_to_stdout(settings.print_warning_msg(warn_msg))
                 while True:
                   message = "Do you want to perform a dictionary-based attack? [Y/n] > "
                   do_update = common.read_input(message, default="Y", check_batch=True)
@@ -216,9 +221,7 @@ def estimate_response_time(url, timesec, http_request_method):
 
 
   except ValueError as err_msg:
-    if settings.VERBOSITY_LEVEL != 0:
-      print(settings.SINGLE_WHITESPACE)
-    print(settings.print_critical_msg(str(err_msg) + "."))
+    settings.print_data_to_stdout(settings.print_critical_msg(str(err_msg) + "."))
     raise SystemExit()
 
   except Exception as err_msg:
@@ -227,8 +230,8 @@ def estimate_response_time(url, timesec, http_request_method):
   end = time.time()
   diff = end - start
 
-  if settings.VERBOSITY_LEVEL != 0 and _:
-    print(settings.SINGLE_WHITESPACE)
+  # if settings.VERBOSITY_LEVEL != 0 and _:
+  #   settings.print_data_to_stdout(settings.SINGLE_WHITESPACE)
     
   if int(diff) < 1:
     url_time_response = int(diff)
@@ -236,9 +239,7 @@ def estimate_response_time(url, timesec, http_request_method):
     if settings.TARGET_OS == settings.OS.WINDOWS:
       warn_msg = "Due to the relatively slow response of 'cmd.exe' in target "
       warn_msg += "host, there might be delays during the data extraction procedure."
-      print(settings.print_warning_msg(warn_msg))
-    if settings.VERBOSITY_LEVEL != 0:
-      print(settings.SINGLE_WHITESPACE)
+      settings.print_data_to_stdout(settings.print_warning_msg(warn_msg))
     url_time_response = int(round(diff))
     warn_msg = "Target's estimated response time is " + str(url_time_response)
     warn_msg += " second" + "s"[url_time_response == 1:] + ". That may cause"
@@ -248,7 +249,7 @@ def estimate_response_time(url, timesec, http_request_method):
     if url_time_response >= 3:
       warn_msg += " and/or possible corruptions over the extracted data"
     warn_msg += "."
-    print(settings.print_warning_msg(warn_msg))
+    settings.print_data_to_stdout(settings.print_warning_msg(warn_msg))
 
   if int(timesec) == int(url_time_response):
     timesec = int(timesec) + int(url_time_response)
@@ -280,7 +281,7 @@ def request_failed(err_msg):
       err_msg += "Please make sure that you have "
       err_msg += "Tor bundle (https://www.torproject.org/download/) or Tor and Privoxy installed and setup "
       err_msg += "so you could be able to successfully use switch '--tor'."
-      print(settings.print_critical_msg(err_msg))
+      settings.print_data_to_stdout(settings.print_critical_msg(err_msg))
       raise SystemExit()
 
   elif any(x in str(error_msg).lower() for x in ["wrong version number", "ssl", "https"]):
@@ -288,7 +289,7 @@ def request_failed(err_msg):
     error_msg = "Can't establish SSL connection. "
     if settings.MULTI_TARGETS or settings.CRAWLING:
       error_msg = error_msg + "Skipping to the next target."
-    print(settings.print_critical_msg(error_msg))
+    settings.print_data_to_stdout(settings.print_critical_msg(error_msg))
     if not settings.CRAWLING:
       raise SystemExit()
     else:
@@ -309,7 +310,7 @@ def request_failed(err_msg):
     if settings.MULTI_TARGETS or settings.CRAWLING:
       err = err + "Skipping to the next target."
     error_msg = err
-    print(settings.print_critical_msg(error_msg))
+    settings.print_data_to_stdout(settings.print_critical_msg(error_msg))
     if not settings.CRAWLING:
       raise SystemExit()
     else:
@@ -332,7 +333,7 @@ def request_failed(err_msg):
         err_msg += " or rerun by providing option '--ignore-code=" + settings.UNAUTHORIZED_ERROR +"'. "
       if settings.MULTI_TARGETS or settings.CRAWLING:
         err_msg += "Skipping to the next target."
-      print(settings.print_critical_msg(err_msg))
+      settings.print_data_to_stdout(settings.print_critical_msg(err_msg))
     if not settings.CRAWLING:
       if menu.options.auth_type and menu.options.auth_cred:
         raise SystemExit()
@@ -353,7 +354,7 @@ def request_failed(err_msg):
       status_code = [err_code for err_code in settings.HTTP_ERROR_CODES if err_code in str(error_msg)]
       warn_msg = "The web server responded with an HTTP error code '" + str(status_code[0]) 
       warn_msg += "' which could interfere with the results of the tests."
-      print(settings.print_warning_msg(warn_msg))
+      settings.print_data_to_stdout(settings.print_warning_msg(warn_msg))
       if not settings.NOT_FOUND_ERROR in str(err_msg).lower():
         return False
       return True
@@ -368,7 +369,7 @@ def request_failed(err_msg):
         error_msg += "In case that it is, "
         error_msg += "you can try to rerun with "
         error_msg += " and/or ".join(items)
-    print(settings.print_critical_msg(error_msg))
+    settings.print_data_to_stdout(settings.print_critical_msg(error_msg))
     if not settings.CRAWLING:
       raise SystemExit()
     else:
@@ -379,8 +380,8 @@ def request_failed(err_msg):
     return False
 
   elif settings.IGNORE_ERR_MSG == False:
-    if menu.options.skip_heuristics and settings.VERBOSITY_LEVEL == 0:
-      print(settings.SINGLE_WHITESPACE)
+    # if menu.options.skip_heuristics and settings.VERBOSITY_LEVEL == 0:
+    #   settings.print_data_to_stdout(settings.SINGLE_WHITESPACE)
     continue_tests = checks.continue_tests(err_msg)
     if continue_tests == True:
       settings.IGNORE_ERR_MSG = True
@@ -395,9 +396,9 @@ def request_failed(err_msg):
     if settings.VERBOSITY_LEVEL >= 1:
       if [True for err_code in settings.HTTP_ERROR_CODES if err_code in str(error_msg)]:
         debug_msg = "Got " + str(err_msg)
-        print(settings.print_debug_msg(debug_msg))
+        settings.print_data_to_stdout(settings.print_debug_msg(debug_msg))
       else:
-        print(settings.print_critical_msg(err_msg))
+        settings.print_data_to_stdout(settings.print_critical_msg(err_msg))
     return False
 
 """
@@ -425,11 +426,9 @@ Check if target host is vulnerable. (Cookie-based injection)
 def cookie_injection(url, vuln_parameter, payload, http_request_method):
 
   def inject_cookie(url, vuln_parameter, payload, http_request_method):
-    if settings.TIME_RELATIVE_ATTACK :
-      payload = _urllib.parse.quote(payload)
 
     # Check if defined POST data
-    if len(settings.USER_DEFINED_POST_DATA) != 0:
+    if settings.USER_DEFINED_POST_DATA:
       data = settings.USER_DEFINED_POST_DATA.encode(settings.DEFAULT_CODEC)
     else:
       data = None
@@ -437,7 +436,8 @@ def cookie_injection(url, vuln_parameter, payload, http_request_method):
     #Check if defined extra headers.
     headers.do_check(request)
     payload = checks.newline_fixation(payload)
-    payload = payload.replace("+", "%2B")
+    payload = checks.payload_fixation(payload)
+    # payload = payload.replace("+", "%2B")
     if settings.INJECT_TAG in menu.options.cookie:
       request.add_header(settings.COOKIE, menu.options.cookie.replace(settings.TESTABLE_VALUE + settings.INJECT_TAG, settings.INJECT_TAG).replace(settings.INJECT_TAG, payload))
     else:
@@ -476,7 +476,7 @@ def user_agent_injection(url, vuln_parameter, payload, http_request_method):
 
   def inject_user_agent(url, vuln_parameter, payload, http_request_method):
     # Check if defined POST data
-    if len(settings.USER_DEFINED_POST_DATA) != 0:
+    if settings.USER_DEFINED_POST_DATA:
       data = settings.USER_DEFINED_POST_DATA.encode(settings.DEFAULT_CODEC)
     else:
       data = None
@@ -519,7 +519,7 @@ def referer_injection(url, vuln_parameter, payload, http_request_method):
 
   def inject_referer(url, vuln_parameter, payload, http_request_method):
     # Check if defined POST data
-    if len(settings.USER_DEFINED_POST_DATA) != 0:
+    if settings.USER_DEFINED_POST_DATA:
       data = settings.USER_DEFINED_POST_DATA.encode(settings.DEFAULT_CODEC)
     else:
       data = None
@@ -562,7 +562,7 @@ def host_injection(url, vuln_parameter, payload, http_request_method):
 
   def inject_host(url, vuln_parameter, payload, http_request_method):
     # Check if defined POST data
-    if len(settings.USER_DEFINED_POST_DATA) != 0:
+    if settings.USER_DEFINED_POST_DATA:
       data = settings.USER_DEFINED_POST_DATA.encode(settings.DEFAULT_CODEC)
     else:
       data = None
@@ -605,7 +605,7 @@ def custom_header_injection(url, vuln_parameter, payload, http_request_method):
 
   def inject_custom_header(url, vuln_parameter, payload, http_request_method):
     # Check if defined POST data
-    if len(settings.USER_DEFINED_POST_DATA) != 0:
+    if settings.USER_DEFINED_POST_DATA:
       data = settings.USER_DEFINED_POST_DATA.encode(settings.DEFAULT_CODEC)
     else:
       data = None
@@ -650,9 +650,8 @@ Target's encoding detection
 def encoding_detection(response):
   charset_detected = False
   if settings.VERBOSITY_LEVEL != 0:
-    debug_msg = "Identifying the indicated web-page charset. "
-    sys.stdout.write(settings.print_debug_msg(debug_msg))
-    sys.stdout.flush()
+    debug_msg = "Identifying the web page charset."
+    settings.print_data_to_stdout(settings.print_debug_msg(debug_msg))
   try:
     # Detecting charset
     try:
@@ -674,48 +673,22 @@ def encoding_detection(response):
       if len(charset) != 0 :
         charset_detected = True
     # Check the identifyied charset
-    if charset_detected :
+    if charset_detected:
       settings.DEFAULT_PAGE_ENCODING = charset
-      if settings.VERBOSITY_LEVEL != 0:
-        print(settings.SINGLE_WHITESPACE)
       if settings.DEFAULT_PAGE_ENCODING.lower() not in settings.ENCODING_LIST:
-        warn_msg = "The indicated web-page charset "  + settings.DEFAULT_PAGE_ENCODING + " seems unknown."
-        print(settings.print_warning_msg(warn_msg))
+        warn_msg = "The web page charset " + settings.DEFAULT_PAGE_ENCODING + " seems unknown."
+        settings.print_data_to_stdout(settings.print_warning_msg(warn_msg))
       else:
         if settings.VERBOSITY_LEVEL != 0:
-          debug_msg = "The indicated web-page charset appears to be "
-          debug_msg += settings.DEFAULT_PAGE_ENCODING + Style.RESET_ALL + "."
-          print(settings.print_bold_debug_msg(debug_msg))
+          debug_msg = "The web page charset appears to be " + settings.DEFAULT_PAGE_ENCODING + "."
+          settings.print_data_to_stdout(settings.print_bold_debug_msg(debug_msg))
     else:
       pass
   except:
     pass
   if charset_detected == False and settings.VERBOSITY_LEVEL != 0:
-    print(settings.SINGLE_WHITESPACE)
-    warn_msg = "Heuristics have failed to identify indicated web-page charset."
-    print(settings.print_warning_msg(warn_msg))
-
-"""
-Procedure for target application identification
-"""
-def technology_detection(response):
-  if settings.VERBOSITY_LEVEL != 0:
-    debug_msg = "Identifying the technology supporting the target application. "
-    sys.stdout.write(settings.print_debug_msg(debug_msg))
-    sys.stdout.flush()
-    print(settings.SINGLE_WHITESPACE)
-  try:
-    if len(response.info()[settings.X_POWERED_BY]) != 0:
-      if settings.VERBOSITY_LEVEL != 0:
-        debug_msg = "The target application is powered by "
-        debug_msg += response.info()[settings.X_POWERED_BY] + Style.RESET_ALL + "."
-        print(settings.print_bold_debug_msg(debug_msg))
-
-  except Exception as e:
-    if settings.VERBOSITY_LEVEL != 0:
-      warn_msg = "Heuristics have failed to identify the technology supporting the target application."
-      print(settings.print_warning_msg(warn_msg))
-
+    warn_msg = "Failed to identify the web page charset."
+    settings.print_data_to_stdout(settings.print_warning_msg(warn_msg))
 
 """
 Procedure for target application identification
@@ -724,53 +697,99 @@ def application_identification(url):
   found_application_extension = False
   if settings.VERBOSITY_LEVEL != 0:
     debug_msg = "Identifying the target application."
-    sys.stdout.write(settings.print_debug_msg(debug_msg))
-    sys.stdout.flush()
+    settings.print_data_to_stdout(settings.print_debug_msg(debug_msg))
   root, application_extension = splitext(_urllib.parse.urlparse(url).path)
   settings.TARGET_APPLICATION = application_extension[1:].upper()
 
   if settings.TARGET_APPLICATION:
     found_application_extension = True
     if settings.VERBOSITY_LEVEL != 0:
-      print(settings.SINGLE_WHITESPACE)
-      debug_msg = "The target application identified as "
-      debug_msg += settings.TARGET_APPLICATION + Style.RESET_ALL + "."
-      print(settings.print_bold_debug_msg(debug_msg))
+      debug_msg = "The target application appears to be " + settings.TARGET_APPLICATION + "."
+      settings.print_data_to_stdout(settings.print_bold_debug_msg(debug_msg))
 
     # Check for unsupported target applications
     for i in range(0,len(settings.UNSUPPORTED_TARGET_APPLICATION)):
       if settings.TARGET_APPLICATION.lower() in settings.UNSUPPORTED_TARGET_APPLICATION[i].lower():
         err_msg = settings.TARGET_APPLICATION + " exploitation is not yet supported."
-        print(settings.print_critical_msg(err_msg))
+        settings.print_data_to_stdout(settings.print_critical_msg(err_msg))
         raise SystemExit()
 
   if not found_application_extension:
     if settings.VERBOSITY_LEVEL != 0:
-      print(settings.SINGLE_WHITESPACE)
-      warn_msg = "Heuristics have failed to identify target application."
-      print(settings.print_warning_msg(warn_msg))
+      warn_msg = "Failed to identify target's application."
+      settings.print_data_to_stdout(settings.print_warning_msg(warn_msg))
 
 """
-Procedure for target server's identification.
+Underlying operating system check.
 """
-def server_identification(server_banner):
-  found_server_banner = False
+def check_os(_):
+  if menu.options.os and checks.user_defined_os():
+    user_defined_os = settings.TARGET_OS
+
+  for i in range(0,len(settings.SERVER_OS_BANNERS)):
+    match = re.search(settings.SERVER_OS_BANNERS[i].lower(), _.lower())
+    if match:
+      if settings.VERBOSITY_LEVEL != 0:
+        debug_msg = "Identifying the underlying operating system."
+        settings.print_data_to_stdout(settings.print_debug_msg(debug_msg))
+      settings.IDENTIFIED_TARGET_OS = True
+      settings.TARGET_OS = match.group(0)
+      match = re.search(r"microsoft|win", settings.TARGET_OS)
+      if match:
+        settings.TARGET_OS = identified_os = settings.OS.WINDOWS
+        if menu.options.os and user_defined_os != settings.OS.WINDOWS:
+          if checks.identified_os():
+            settings.TARGET_OS = user_defined_os
+          else:
+            settings.TARGET_OS = settings.OS.WINDOWS
+        if menu.options.shellshock:
+          err_msg = "The shellshock module ('--shellshock') is not available for " + identified_os + " targets."
+          settings.print_data_to_stdout(settings.print_critical_msg(err_msg))
+          raise SystemExit()
+      else:
+        identified_os = "Unix-like (" + settings.TARGET_OS + ")"
+        if menu.options.os and user_defined_os == settings.OS.WINDOWS:
+          if checks.identified_os():
+            settings.TARGET_OS = user_defined_os
+
+  if settings.VERBOSITY_LEVEL != 0 :
+    if settings.IDENTIFIED_TARGET_OS:
+      debug_msg = "The underlying operating system appears to be " + identified_os.title() +  "."
+      settings.print_data_to_stdout(settings.print_bold_debug_msg(debug_msg))
+
+"""
+Target application identification
+"""
+def technology_identification(response):
+  x_powered_by = response.info()[settings.X_POWERED_BY]
   if settings.VERBOSITY_LEVEL != 0:
-    debug_msg = "Identifying the target server. "
-    sys.stdout.write(settings.print_debug_msg(debug_msg))
-    sys.stdout.flush()
+    debug_msg = "Identifying the technology supporting the target application."
+    settings.print_data_to_stdout(settings.print_debug_msg(debug_msg))
+  try:
+    if len(x_powered_by) != 0:
+      if settings.VERBOSITY_LEVEL != 0:
+        debug_msg = "The target application is powered by " + x_powered_by + "."
+        settings.print_data_to_stdout(settings.print_bold_debug_msg(debug_msg))
+      check_os(x_powered_by)
 
+  except Exception as e:
+    if settings.VERBOSITY_LEVEL != 0:
+      warn_msg = "Failed to identify the technology supporting the target application."
+      settings.print_data_to_stdout(settings.print_warning_msg(warn_msg))
+
+"""
+Target server's identification.
+"""
+def server_identification(response):
+  if settings.VERBOSITY_LEVEL != 0:
+    debug_msg = "Identifying the software used by target server."
+    settings.print_data_to_stdout(settings.print_debug_msg(debug_msg))
+
+  server_banner = response.info()[settings.SERVER]
   for i in range(0,len(settings.SERVER_BANNERS)):
     match = re.search(settings.SERVER_BANNERS[i].lower(), server_banner.lower())
     if match:
-      if settings.VERBOSITY_LEVEL != 0:
-        print(settings.SINGLE_WHITESPACE)
-      if settings.VERBOSITY_LEVEL != 0:
-        debug_msg = "The target server identified as "
-        debug_msg += server_banner + Style.RESET_ALL + "."
-        print(settings.print_bold_debug_msg(debug_msg))
       settings.SERVER_BANNER = match.group(0)
-      found_server_banner = True
       # Set up default root paths
       if "apache" in settings.SERVER_BANNER.lower():
         if settings.TARGET_OS == settings.OS.WINDOWS:
@@ -782,96 +801,24 @@ def server_identification(server_banner):
       elif "microsoft-iis" in settings.SERVER_BANNER.lower():
         settings.WEB_ROOT = settings.WINDOWS_DEFAULT_DOC_ROOTS[0]
       break
-  else:
-    if settings.VERBOSITY_LEVEL != 0:
-      print(settings.SINGLE_WHITESPACE)
-      warn_msg = "The server which identified as '"
-      warn_msg += server_banner + "' seems unknown."
-      print(settings.print_warning_msg(warn_msg))
+
+  if len(server_banner) != 0 and settings.VERBOSITY_LEVEL != 0:
+    debug_msg = "The target server's software appears to be " + server_banner + "."
+    settings.print_data_to_stdout(settings.print_bold_debug_msg(debug_msg))
+
 
 """
 Procedure for target server's operating system identification.
 """
-def check_target_os(server_banner):
-  found_os_server = False
-  if menu.options.os and checks.user_defined_os():
-    user_defined_os = settings.TARGET_OS
+def os_identification(response):
+  if not settings.IGNORE_IDENTIFIED_OS:
+    server_banner = response.info()[settings.SERVER]
+    identified_os = check_os(server_banner)
 
-  if settings.VERBOSITY_LEVEL != 0:
-    debug_msg = "Identifying The underlying operating system. "
-    sys.stdout.write(settings.print_debug_msg(debug_msg))
-    sys.stdout.flush()
-
-  # Procedure for target OS identification.
-  for i in range(0,len(settings.SERVER_OS_BANNERS)):
-    match = re.search(settings.SERVER_OS_BANNERS[i].lower(), server_banner.lower())
-    if match:
-      found_os_server = True
-      settings.TARGET_OS = match.group(0)
-      match = re.search(r"microsoft|win", settings.TARGET_OS)
-      if match:
-        identified_os = "Windows"
-        if menu.options.os and user_defined_os != "win":
-          if not checks.identified_os():
-            settings.TARGET_OS = user_defined_os
-
-        settings.TARGET_OS = identified_os[:3].lower()
-        if menu.options.shellshock:
-          if settings.VERBOSITY_LEVEL != 0:
-            print(settings.SINGLE_WHITESPACE)
-          err_msg = "The shellshock module ('--shellshock') is not available for "
-          err_msg += identified_os + " targets."
-          print(settings.print_critical_msg(err_msg))
-          raise SystemExit()
-      else:
-        identified_os = "Unix-like (" + settings.TARGET_OS + ")"
-        if menu.options.os and user_defined_os == "win":
-          if not checks.identified_os():
-            settings.TARGET_OS = user_defined_os
-
-  if settings.VERBOSITY_LEVEL != 0 :
-    if found_os_server:
-      print(settings.SINGLE_WHITESPACE)
-      debug_msg = "The underlying operating system appears to be "
-      debug_msg += identified_os.title() + Style.RESET_ALL + "."
-      print(settings.print_bold_debug_msg(debug_msg))
-    else:
-      print(settings.SINGLE_WHITESPACE)
-      warn_msg = "Heuristics have failed to identify server's operating system."
-      print(settings.print_warning_msg(warn_msg))
-
-  if found_os_server == False and not menu.options.os:
-    # If "--shellshock" option is provided then, by default is a Linux/Unix operating system.
-    if menu.options.shellshock:
-      pass
-    else:
-      if menu.options.batch:
-        if not settings.CHECK_BOTH_OS:
-          settings.CHECK_BOTH_OS = True
-          check_type = "Unix-like based"
-        elif settings.CHECK_BOTH_OS:
-          settings.TARGET_OS = settings.OS.WINDOWS
-          settings.CHECK_BOTH_OS = False
-          settings.PERFORM_BASIC_SCANS = True
-          check_type = "windows based"
-        info_msg = "Setting the " + check_type + " payloads."
-        print(settings.print_info_msg(info_msg))
-      else:
-        while True:
-          message = "Do you recognise the server's operating system? "
-          message += "[(W)indows/(U)nix-like/(q)uit] > "
-          got_os = common.read_input(message, default="", check_batch=True)
-          if got_os.lower() in settings.CHOICE_OS :
-            if got_os.lower() == "w":
-              settings.TARGET_OS = settings.OS.WINDOWS
-              break
-            elif got_os.lower() == "u":
-              break
-            elif got_os.lower() == "q":
-              raise SystemExit()
-          else:
-            common.invalid_option(got_os)
-            pass
+  if not settings.IDENTIFIED_TARGET_OS and not menu.options.os:
+    warn_msg = "Failed to identify server's underlying operating system."
+    settings.print_data_to_stdout(settings.print_warning_msg(warn_msg))
+    checks.define_target_os()
 
 """
 Perform target page reload (if it is required).

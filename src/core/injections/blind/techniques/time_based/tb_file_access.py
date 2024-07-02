@@ -17,6 +17,7 @@ import re
 import os
 import sys
 from src.utils import menu
+from src.utils import common
 from src.utils import settings
 from src.utils import session_handler
 from src.core.injections.controller import checks
@@ -55,11 +56,11 @@ def file_write(separator, maxlen, TAG, cmd, prefix, suffix, whitespace, timesec,
     shell = "".join(str(p) for p in shell)
   cmd = checks.check_file(dest_to_write)
   if settings.VERBOSITY_LEVEL == 0 and not _:
-    print(settings.SINGLE_WHITESPACE)
+    settings.print_data_to_stdout(settings.SINGLE_WHITESPACE)
   check_how_long, shell = tb_injector.injection(separator, maxlen, TAG, cmd, prefix, suffix, whitespace, timesec, http_request_method, url, vuln_parameter, alter_shell, filename, url_time_response)
   shell = "".join(str(p) for p in shell)
   if settings.VERBOSITY_LEVEL == 0:
-    print(settings.SINGLE_WHITESPACE)
+    settings.print_data_to_stdout(settings.SINGLE_WHITESPACE)
   checks.file_write_status(shell, dest_to_write)
 
 """
@@ -73,7 +74,7 @@ def file_upload(separator, maxlen, TAG, cmd, prefix, suffix, whitespace, timesec
   check_how_long, shell = tb_injector.injection(separator, maxlen, TAG, cmd, prefix, suffix, whitespace, timesec, http_request_method, url, vuln_parameter, alter_shell, filename, url_time_response)
   shell = "".join(str(p) for p in shell)
   if settings.VERBOSITY_LEVEL == 0:
-    print(settings.SINGLE_WHITESPACE)
+    settings.print_data_to_stdout(settings.SINGLE_WHITESPACE)
   checks.file_upload_status(shell, dest_to_upload)
 
 """
@@ -90,7 +91,7 @@ def file_read(separator, maxlen, TAG, cmd, prefix, suffix, whitespace, timesec, 
     shell = session_handler.export_stored_cmd(url, cmd, vuln_parameter)
   shell = "".join(str(p) for p in shell)
   if settings.VERBOSITY_LEVEL == 0 and _ and len(shell) != 0:
-    print(settings.SINGLE_WHITESPACE)
+    settings.print_data_to_stdout(settings.SINGLE_WHITESPACE)
   checks.file_read_status(shell, file_to_read, filename)
 
 """
@@ -116,4 +117,28 @@ def do_check(separator, maxlen, TAG, cmd, prefix, suffix, whitespace, timesec, h
     if settings.FILE_ACCESS_DONE == False:
       settings.FILE_ACCESS_DONE = True
 
+"""
+Check stored session
+"""
+def stored_session(separator, maxlen, TAG, cmd, prefix, suffix, whitespace, timesec, http_request_method, url, vuln_parameter, alter_shell, filename, url_time_response):
+  if settings.FILE_ACCESS_DONE == True:
+    while True:
+      message = "Do you want to ignore stored session and access files again? [y/N] > "
+      file_access_again = common.read_input(message, default="N", check_batch=True)
+      if file_access_again in settings.CHOICE_YES:
+        if not menu.options.ignore_session:
+          menu.options.ignore_session = True
+        do_check(separator, maxlen, TAG, cmd, prefix, suffix, whitespace, timesec, http_request_method, url, vuln_parameter, alter_shell, filename, url_time_response)
+        break
+      elif file_access_again in settings.CHOICE_NO:
+        break
+      elif file_access_again in settings.CHOICE_QUIT:
+        raise SystemExit()
+      else:
+        common.invalid_option(file_access_again)
+        pass
+  else:
+    if menu.file_access_options():
+      do_check(separator, maxlen, TAG, cmd, prefix, suffix, whitespace, timesec, http_request_method, url, vuln_parameter, alter_shell, filename, url_time_response)
+      
 # eof

@@ -40,14 +40,14 @@ Check if target host is vulnerable.
 def injection_test(payload, http_request_method, url):
 
   # Check if defined POST data
-  if len(settings.USER_DEFINED_POST_DATA) == 0 or settings.IGNORE_USER_DEFINED_POST_DATA:
+  if not settings.USER_DEFINED_POST_DATA or settings.IGNORE_USER_DEFINED_POST_DATA:
     # Check if its not specified the 'INJECT_HERE' tag
     #url = parameters.do_GET_check(url, http_request_method)
 
     # Define the vulnerable parameter
     vuln_parameter = parameters.vuln_GET_param(url)
     target = url.replace(settings.TESTABLE_VALUE + settings.INJECT_TAG, settings.INJECT_TAG).replace(settings.INJECT_TAG, payload)
-    if len(settings.USER_DEFINED_POST_DATA) != 0:
+    if settings.USER_DEFINED_POST_DATA:
       request = _urllib.request.Request(target, settings.USER_DEFINED_POST_DATA.encode(settings.DEFAULT_CODEC), method=http_request_method)
     else:
       request = _urllib.request.Request(target, method=http_request_method)
@@ -162,9 +162,8 @@ def injection(separator, TAG, cmd, prefix, suffix, whitespace, http_request_meth
     # Check if defined "--verbose" option.
     if settings.VERBOSITY_LEVEL != 0:
       debug_msg = "Executing the '" + cmd + "' command. "
-      sys.stdout.write(settings.print_debug_msg(debug_msg))
-      sys.stdout.flush()
-      sys.stdout.write("\n" + settings.print_payload(payload) + "\n")
+      settings.print_data_to_stdout(settings.print_debug_msg(debug_msg))
+      settings.print_data_to_stdout(settings.print_payload(payload))
 
     # Check if defined cookie with "INJECT_HERE" tag
     if menu.options.cookie and settings.INJECT_TAG in menu.options.cookie:
@@ -188,13 +187,13 @@ def injection(separator, TAG, cmd, prefix, suffix, whitespace, http_request_meth
 
     else:
       # Check if defined POST data
-      if len(settings.USER_DEFINED_POST_DATA) == 0 or settings.IGNORE_USER_DEFINED_POST_DATA:
+      if not settings.USER_DEFINED_POST_DATA or settings.IGNORE_USER_DEFINED_POST_DATA:
         # Check if its not specified the 'INJECT_HERE' tag
         #url = parameters.do_GET_check(url, http_request_method)
 
         target = url.replace(settings.TESTABLE_VALUE + settings.INJECT_TAG, settings.INJECT_TAG).replace(settings.INJECT_TAG, payload)
         vuln_parameter = ''.join(vuln_parameter)
-        if len(settings.USER_DEFINED_POST_DATA) != 0:
+        if settings.USER_DEFINED_POST_DATA:
           request = _urllib.request.Request(target, settings.USER_DEFINED_POST_DATA.encode(settings.DEFAULT_CODEC), method=http_request_method)
         else:
           request = _urllib.request.Request(target, method=http_request_method)
@@ -242,7 +241,7 @@ def injection(separator, TAG, cmd, prefix, suffix, whitespace, http_request_meth
       tries = tries + 1
     else:
       err_msg = "Something went wrong, the request has failed (" + str(tries) + ") times continuously."
-      sys.stdout.write(settings.print_critical_msg(err_msg)+"\n")
+      settings.print_data_to_stdout(settings.print_critical_msg(err_msg))
       raise SystemExit()
 
   return response

@@ -1,4 +1,13 @@
 ## Version 4.0 (TBA)
+* Revised: Improvement regarding writing text to the stdout (console) stream.
+* Fixed: Minor bug-fix regarding combining custom injection marker (i.e. asterisk `*`) with `-p` option.
+* Revised: Improvement regarding specifying multiple injection points by appending custom injection marker (i.e. asterisk `*`).
+* Fixed: Minor bug-fix regarding crawler (i.e. option `--crawl`).
+* Updated: Six (third party) module has been updated (Python 3.12 support).
+* Revised: Minor improvement regarding determining (passively) the target's underlying operating system.
+* Revised: Minor improvement for enabling end-users to choose whether to skip or continue testing the remaining parameters, if one is found vulnerable.
+* Revised: Minor improvements regarding semiblind (i.e. "file-based") technique.
+* Fixed: Minor bug-fix regarding option `--output-dir`.
 * Revised: Improvement regarding option `--skip` for excluding certain parameter(s) from testing.
 * Revised: Improvement regarding specifying which parameter(s) to test (i.e. `-p` option).
 * Revised: Improvement regarding processing / ignoring custom injection marker (i.e. asterisk `*`).

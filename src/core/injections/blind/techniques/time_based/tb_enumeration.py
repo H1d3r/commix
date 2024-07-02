@@ -18,6 +18,7 @@ import sys
 from src.thirdparty.six.moves import urllib as _urllib
 from src.utils import logs
 from src.utils import menu
+from src.utils import common
 from src.utils import settings
 from src.utils import session_handler
 from src.core.injections.controller import checks
@@ -78,13 +79,13 @@ def system_information(separator, maxlen, TAG, cmd, prefix, suffix, whitespace, 
     output = session_handler.export_stored_cmd(url, cmd, vuln_parameter)
   target_os = output
   if settings.VERBOSITY_LEVEL == 0 and _:
-    print(settings.SINGLE_WHITESPACE)
+    settings.print_data_to_stdout(settings.SINGLE_WHITESPACE)
   if target_os:
     if settings.TARGET_OS != settings.OS.WINDOWS:
       cmd = settings.DISTRO_INFO
       if session_handler.export_stored_cmd(url, cmd, vuln_parameter) == None or menu.options.ignore_session:
         if settings.VERBOSITY_LEVEL == 0 and _:
-          sys.stdout.write("")
+          settings.print_data_to_stdout("")
         check_how_long, output = tb_injector.injection(separator, maxlen, TAG, cmd, prefix, suffix, whitespace, timesec, http_request_method, url, vuln_parameter, alter_shell, filename, url_time_response)
         session_handler.store_cmd(url, cmd, output, vuln_parameter)
       else:
@@ -98,7 +99,7 @@ def system_information(separator, maxlen, TAG, cmd, prefix, suffix, whitespace, 
       cmd = settings.RECOGNISE_HP
     if session_handler.export_stored_cmd(url, cmd, vuln_parameter) == None or menu.options.ignore_session:
       if settings.VERBOSITY_LEVEL == 0 and _:
-        sys.stdout.write("\n")
+        settings.print_data_to_stdout("\n")
       # The main command injection exploitation.
       check_how_long, output = tb_injector.injection(separator, maxlen, TAG, cmd, prefix, suffix, whitespace, timesec, http_request_method, url, vuln_parameter, alter_shell, filename, url_time_response)
       session_handler.store_cmd(url, cmd, output, vuln_parameter)
@@ -127,7 +128,7 @@ def current_user(separator, maxlen, TAG, cmd, prefix, suffix, whitespace, timese
   checks.print_current_user(cu_account, filename, _)
 
 """
-Check if the current user has excessive privileges.
+Check if the Current user is privileged.
 """
 def check_current_user_privs(separator, maxlen, TAG, cmd, prefix, suffix, whitespace, timesec, http_request_method, url, vuln_parameter, alter_shell, filename, url_time_response):
   _ = False
@@ -193,7 +194,7 @@ def single_os_cmd_exec(separator, maxlen, TAG, cmd, prefix, suffix, whitespace, 
     check_how_long, output = tb_injector.injection(separator, maxlen, TAG, cmd, prefix, suffix, whitespace, timesec, http_request_method, url, vuln_parameter, alter_shell, filename, url_time_response)
     session_handler.store_cmd(url, cmd, output, vuln_parameter)
     if settings.VERBOSITY_LEVEL == 0:
-      print(settings.SINGLE_WHITESPACE)
+      settings.print_data_to_stdout(settings.SINGLE_WHITESPACE)
   else:
     output = session_handler.export_stored_cmd(url, cmd, vuln_parameter)
     check_how_long = 0
@@ -212,49 +213,49 @@ def do_check(separator, maxlen, TAG, cmd, prefix, suffix, whitespace, timesec, h
   if menu.options.ps_version and settings.PS_ENABLED == None:
     if not checks.ps_incompatible_os():
       if settings.ENUMERATION_DONE:
-        print(settings.SINGLE_WHITESPACE)
+        settings.print_data_to_stdout(settings.SINGLE_WHITESPACE)
       checks.print_enumenation().ps_version_msg()
       powershell_version(separator, maxlen, TAG, cmd, prefix, suffix, whitespace, timesec, http_request_method, url, vuln_parameter, alter_shell, filename, url_time_response)
       reset()
 
   if menu.options.hostname:
     if settings.ENUMERATION_DONE:
-      print(settings.SINGLE_WHITESPACE)
+      settings.print_data_to_stdout(settings.SINGLE_WHITESPACE)
     checks.print_enumenation().hostname_msg()
     hostname(separator, maxlen, TAG, cmd, prefix, suffix, whitespace, timesec, http_request_method, url, vuln_parameter, alter_shell, filename, url_time_response)
     reset()
 
   if menu.options.current_user:
     if settings.ENUMERATION_DONE:
-      print(settings.SINGLE_WHITESPACE)
+      settings.print_data_to_stdout(settings.SINGLE_WHITESPACE)
     checks.print_enumenation().current_user_msg()
     current_user(separator, maxlen, TAG, cmd, prefix, suffix, whitespace, timesec, http_request_method, url, vuln_parameter, alter_shell, filename, url_time_response)
     reset()
 
   if menu.options.is_root or menu.options.is_admin:
     if settings.ENUMERATION_DONE:
-      print(settings.SINGLE_WHITESPACE)
+      settings.print_data_to_stdout(settings.SINGLE_WHITESPACE)
     checks.print_enumenation().check_privs_msg()
     check_current_user_privs(separator, maxlen, TAG, cmd, prefix, suffix, whitespace, timesec, http_request_method, url, vuln_parameter, alter_shell, filename, url_time_response)
     reset()
 
   if menu.options.sys_info:
     if settings.ENUMERATION_DONE:
-      print(settings.SINGLE_WHITESPACE)
+      settings.print_data_to_stdout(settings.SINGLE_WHITESPACE)
     checks.print_enumenation().os_info_msg()
     system_information(separator, maxlen, TAG, cmd, prefix, suffix, whitespace, timesec, http_request_method, url, vuln_parameter, alter_shell, filename, url_time_response)
     reset()
 
   if menu.options.users:
     if settings.ENUMERATION_DONE:
-      print(settings.SINGLE_WHITESPACE)
+      settings.print_data_to_stdout(settings.SINGLE_WHITESPACE)
     checks.print_enumenation().print_users_msg()
     system_users(separator, maxlen, TAG, cmd, prefix, suffix, whitespace, timesec, http_request_method, url, vuln_parameter, alter_shell, filename, url_time_response)
     reset()
 
   if menu.options.passwords:
     if settings.ENUMERATION_DONE:
-      print(settings.SINGLE_WHITESPACE)
+      settings.print_data_to_stdout(settings.SINGLE_WHITESPACE)
     if settings.TARGET_OS == settings.OS.WINDOWS:
       check_option = "--passwords"
       checks.unavailable_option(check_option)
@@ -262,5 +263,29 @@ def do_check(separator, maxlen, TAG, cmd, prefix, suffix, whitespace, timesec, h
       checks.print_enumenation().print_passes_msg()
       system_passwords(separator, maxlen, TAG, cmd, prefix, suffix, whitespace, timesec, http_request_method, url, vuln_parameter, alter_shell, filename, url_time_response)
     reset()
+
+"""
+Check stored session
+"""
+def stored_session(separator, maxlen, TAG, cmd, prefix, suffix, whitespace, timesec, http_request_method, url, vuln_parameter, alter_shell, filename, url_time_response):
+  if settings.ENUMERATION_DONE == True:
+    while True:
+      message = "Do you want to ignore stored session and enumerate again? [y/N] > "
+      enumerate_again = common.read_input(message, default="N", check_batch=True)
+      if enumerate_again in settings.CHOICE_YES:
+        if not menu.options.ignore_session:
+          menu.options.ignore_session = True
+        do_check(separator, maxlen, TAG, cmd, prefix, suffix, whitespace, timesec, http_request_method, url, vuln_parameter, alter_shell, filename, url_time_response)
+        break
+      elif enumerate_again in settings.CHOICE_NO:
+        break
+      elif enumerate_again in settings.CHOICE_QUIT:
+        raise SystemExit()
+      else:
+        common.invalid_option(enumerate_again)
+        pass
+  else:
+    if menu.enumeration_options():
+      do_check(separator, maxlen, TAG, cmd, prefix, suffix, whitespace, timesec, http_request_method, url, vuln_parameter, alter_shell, filename, url_time_response)
 
 # eof

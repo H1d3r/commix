@@ -47,8 +47,11 @@ def do_GET_check(url, http_request_method):
     value = ''.join(value)
     return value
 
+  if settings.CUSTOM_INJECTION_MARKER and settings.SKIP_NON_CUSTOM:
+      return False
+      
   if settings.USER_DEFINED_POST_DATA:
-    if settings.CUSTOM_INJECTION_MARKER_CHAR in settings.USER_DEFINED_POST_DATA and not checks.process_non_custom():
+    if settings.CUSTOM_INJECTION_MARKER_CHAR in settings.USER_DEFINED_POST_DATA and settings.SKIP_NON_CUSTOM:
       return False
     if settings.INJECT_TAG in url:
       settings.IGNORE_USER_DEFINED_POST_DATA = True
@@ -57,8 +60,9 @@ def do_GET_check(url, http_request_method):
   url = checks.process_custom_injection_data(url)
   # Check for REST-ful URLs format.
   if "?" not in url:
+    settings.USER_DEFINED_URL_DATA = False
     if settings.INJECT_TAG not in url and not menu.options.shellshock:
-      if len(settings.TEST_PARAMETER) != 0 or \
+      if len(settings.TESTABLE_PARAMETERS_LIST) != 0 or \
          menu.options.level == settings.HTTP_HEADER_INJECTION_LEVEL or \
          menu.options.level == settings.COOKIE_INJECTION_LEVEL or \
          settings.USER_DEFINED_POST_DATA and not settings.IGNORE_USER_DEFINED_POST_DATA:
@@ -67,7 +71,7 @@ def do_GET_check(url, http_request_method):
         err_msg = "No parameter(s) found for testing in the provided data. "
         if not menu.options.crawldepth:
           err_msg += "You are advised to rerun with '--crawl=2'."
-        print(settings.print_critical_msg(err_msg))
+        settings.print_data_to_stdout(settings.print_critical_msg(err_msg))
         raise SystemExit()
     elif menu.options.shellshock:
       return False
@@ -87,7 +91,7 @@ def do_GET_check(url, http_request_method):
         multi_parameters = parameters.split(settings.PARAMETER_DELIMITER)
         multi_parameters = [x for x in multi_parameters if x]
       except ValueError as err_msg:
-        print(settings.print_critical_msg(err_msg))
+        settings.print_data_to_stdout(settings.print_critical_msg(err_msg))
         raise SystemExit()
       # Check for inappropriate format in provided parameter(s).
       if len([s for s in multi_parameters if "=" in s]) != (len(multi_parameters)):
@@ -116,10 +120,15 @@ def do_GET_check(url, http_request_method):
           if len(value) == 0:
             parameters = parameters + settings.INJECT_TAG
           else:
-            parameters = parameters.replace(value, value + settings.INJECT_TAG)
+            if settings.CUSTOM_INJECTION_MARKER:
+              if settings.ASTERISK_MARKER in value:
+                parameters = parameters.replace(value, value.replace(settings.ASTERISK_MARKER, settings.INJECT_TAG))
+            else:
+              if not settings.ASTERISK_MARKER in value and not settings.CUSTOM_INJECTION_MARKER_CHAR in value:
+                parameters = parameters.replace(value, value + settings.INJECT_TAG)
         # Reconstruct the URL
         url = url_part + "?" + parameters
-        url = url.replace(settings.RANDOM_TAG, "")
+        url = url.replace(settings.RANDOM_TAG, "").replace(settings.ASTERISK_MARKER,"")
         urls_list.append(url)
         return urls_list
       else:
@@ -149,14 +158,19 @@ def do_GET_check(url, http_request_method):
             # Replace the value of parameter with INJECT_HERE tag
             if len(value) == 0:
               if not menu.options.skip_empty:
-                all_params[param] = ''.join(all_params[param]) + settings.INJECT_TAG
+                all_params[param] = ''.join(all_params[param] + settings.INJECT_TAG)
             else:
-              all_params[param] = ''.join(all_params[param]).replace(value, value + settings.INJECT_TAG)
+              if settings.CUSTOM_INJECTION_MARKER:
+                if settings.ASTERISK_MARKER in value:
+                  all_params[param] = ''.join(all_params[param]).replace(value, value.replace(settings.ASTERISK_MARKER, settings.INJECT_TAG))
+              else:
+                if not settings.ASTERISK_MARKER in value and not settings.CUSTOM_INJECTION_MARKER_CHAR in value:
+                  all_params[param] = ''.join(all_params[param]).replace(value, value + settings.INJECT_TAG)
             all_params[param - 1] = ''.join(all_params[param - 1]).replace(settings.INJECT_TAG, "")
             parameter = settings.PARAMETER_DELIMITER.join(all_params)
             # Reconstruct the URL
             url = url_part + "?" + parameter
-            url = url.replace(settings.RANDOM_TAG, "")
+            url = url.replace(settings.RANDOM_TAG, "").replace(settings.ASTERISK_MARKER,"")
             urls_list.append(url)
         else:
           for param in range(0,len(multi_parameters)):
@@ -180,7 +194,7 @@ def vuln_GET_param(url):
     value = ''.join(value)
     vuln_parameter = re.sub(r"/(.*)/", "", value)
 
-  elif re.search(r"" + settings.PARAMETER_DELIMITER + "(.*)=[\S*(\\/)]*" + settings.INJECT_TAG, url) or \
+  elif re.search(r"" + settings.PARAMETER_DELIMITER + r"(.*)=[\S*(\\/)]*" + settings.INJECT_TAG, url) or \
        re.search(r"\?(.*)=[\S*(\\/)]*" + settings.INJECT_TAG , url):
     pairs = url.split("?")[1].split(settings.PARAMETER_DELIMITER)
     for param in range(0,len(pairs)):
@@ -188,7 +202,8 @@ def vuln_GET_param(url):
         vuln_parameter = pairs[param].split("=")[0]
         if settings.CUSTOM_INJECTION_MARKER:
           try:
-            settings.TEST_PARAMETER = vuln_parameter
+            settings.CUSTOM_INJECTION_MARKER_PARAMETERS_LIST.append(vuln_parameter) if vuln_parameter not in settings.CUSTOM_INJECTION_MARKER_PARAMETERS_LIST else settings.CUSTOM_INJECTION_MARKER_PARAMETERS_LIST
+            settings.TESTABLE_PARAMETERS_LIST.append(vuln_parameter) if vuln_parameter not in settings.CUSTOM_INJECTION_MARKER_PARAMETERS_LIST else settings.TESTABLE_PARAMETERS_LIST
             settings.PRE_CUSTOM_INJECTION_MARKER_CHAR = pairs[param].split("=")[1].split(settings.INJECT_TAG)[1]
           except Exception:
             pass
@@ -290,10 +305,11 @@ def do_POST_check(parameter, http_request_method):
       settings.IS_XML = checks.process_data(data_type, http_request_method)
       settings.PARAMETER_DELIMITER = "\n"
 
-  elif settings.TEST_PARAMETER and not any(ext in parameter for ext in settings.TEST_PARAMETER) and not settings.INJECT_TAG in parameter:
-    settings.IGNORE_USER_DEFINED_POST_DATA = True
+  elif settings.TESTABLE_PARAMETERS_LIST and not any(ext in parameter for ext in settings.TESTABLE_PARAMETERS_LIST) and not settings.INJECT_TAG in parameter:
+    if settings.SKIP_NON_CUSTOM:
+      settings.IGNORE_USER_DEFINED_POST_DATA = True
 
-  if settings.IGNORE_USER_DEFINED_POST_DATA:
+  if settings.IGNORE_USER_DEFINED_POST_DATA and settings.SKIP_NON_CUSTOM:
     return ""
 
   parameters_list = []
@@ -310,7 +326,7 @@ def do_POST_check(parameter, http_request_method):
     try:
       multi_parameters = parameter.split(settings.PARAMETER_DELIMITER)
     except ValueError as err_msg:
-      print(settings.print_critical_msg(err_msg))
+      settings.print_data_to_stdout(settings.print_critical_msg(err_msg))
       raise SystemExit()
 
   # Check for inappropriate format in provided parameter(s).
@@ -355,10 +371,16 @@ def do_POST_check(parameter, http_request_method):
           else:
             parameter = parameter + settings.INJECT_TAG
         else:
-          parameter = parameter.replace(value, value + settings.INJECT_TAG)
+          if settings.CUSTOM_INJECTION_MARKER:
+            if settings.ASTERISK_MARKER in value:
+              parameter = parameter.replace(value, value.replace(settings.ASTERISK_MARKER, settings.INJECT_TAG))
+          else:
+            if not settings.ASTERISK_MARKER in value and not settings.CUSTOM_INJECTION_MARKER_CHAR in value:
+              parameter = parameter.replace(value, value + settings.INJECT_TAG)
+
         if settings.IS_JSON:
           parameter = json_int_check(parameter, value)
-        parameter = parameter.replace(settings.RANDOM_TAG, "")
+        parameter = parameter.replace(settings.RANDOM_TAG, "").replace(settings.ASTERISK_MARKER,"")
         return parameter
     else:
       for param in range(0, len(multi_parameters)):
@@ -405,17 +427,22 @@ def do_POST_check(parameter, http_request_method):
             elif settings.IS_XML:
               all_params[param] = ''.join(all_params[param]).replace("></", ">" + settings.INJECT_TAG + "</")
             else:
-              all_params[param] = ''.join(all_params[param]) + settings.INJECT_TAG
+              all_params[param] = ''.join(all_params[param] + settings.INJECT_TAG)
         else:
-          all_params[param] = ''.join(all_params[param]).replace(value, value + settings.INJECT_TAG)
+          if settings.CUSTOM_INJECTION_MARKER:
+            if settings.ASTERISK_MARKER in value:
+              all_params[param] = ''.join(all_params[param]).replace(value, value.replace(settings.ASTERISK_MARKER, settings.INJECT_TAG))
+          else:
+            if not settings.ASTERISK_MARKER in value and not settings.CUSTOM_INJECTION_MARKER_CHAR in value:
+              all_params[param] = ''.join(all_params[param]).replace(value, value + settings.INJECT_TAG)
           if settings.IS_JSON and len(all_params[param].split("\":")) == 2:
             check_parameter = all_params[param].split("\":")[0] 
             if settings.INJECT_TAG in check_parameter:
-              all_params[param] = all_params[param].replace(check_parameter,check_parameter.replace(settings.INJECT_TAG, ""))
+              all_params[param] = all_params[param].replace(check_parameter, check_parameter.replace(settings.INJECT_TAG, ""))
               
         all_params[param - 1] = ''.join(all_params[param - 1]).replace(settings.INJECT_TAG, "")
         parameter = settings.PARAMETER_DELIMITER.join(all_params)
-        parameter = parameter.replace(settings.RANDOM_TAG, "")
+        parameter = parameter.replace(settings.RANDOM_TAG, "").replace(settings.ASTERISK_MARKER,"")
         if settings.IS_JSON:
           if (len(all_params)) == 1 and settings.INJECT_TAG not in all_params[param]:
             parameter = parameter.replace(value, value + settings.INJECT_TAG)
@@ -423,7 +450,6 @@ def do_POST_check(parameter, http_request_method):
         if type(parameter) != list:
           parameters_list.append(parameter)
         parameter = parameters_list
-
     else:
       for param in range(0, len(multi_parameters)):
         # Grab the value of parameter.
@@ -452,22 +478,24 @@ def vuln_POST_param(parameter, url):
     parameters = ''.join(parameters.split(":")[0]).strip()
     settings.TESTABLE_VALUE = vuln_parameter = ''.join(parameters.split(settings.RANDOM_TAG)[:1])
     if settings.CUSTOM_INJECTION_MARKER:
-      settings.TEST_PARAMETER = vuln_parameter
+      settings.CUSTOM_INJECTION_MARKER_PARAMETERS_LIST.append(vuln_parameter) if vuln_parameter not in settings.CUSTOM_INJECTION_MARKER_PARAMETERS_LIST else settings.CUSTOM_INJECTION_MARKER_PARAMETERS_LIST
+      settings.TESTABLE_PARAMETERS_LIST.append(vuln_parameter) if vuln_parameter not in settings.CUSTOM_INJECTION_MARKER_PARAMETERS_LIST else settings.TESTABLE_PARAMETERS_LIST
 
   # XML data format.
   elif settings.IS_XML:
-    parameters = list(parameter.replace("></",">" + settings.END_LINE[1] + "</").split(settings.END_LINE[1]))
+    parameters = list(parameter.replace("></",">" + settings.END_LINE.LF + "</").split(settings.END_LINE.LF))
     for item in parameters:
       if settings.INJECT_TAG in item:
         result = re.sub(re.compile('<.*?>'), '', item)
         if not settings.CUSTOM_INJECTION_MARKER and settings.CUSTOM_INJECTION_MARKER_CHAR in item:
           item = item.replace(settings.CUSTOM_INJECTION_MARKER_CHAR,"")
         _ = (re.search('<(.*)>' + result + '</(.*)>', item))
-        if (_.groups()[0]) == (_.groups()[1]):
+        if _ and (_.groups()[0]) == (_.groups()[1]):
           vuln_parameter = ''.join(_.groups()[0])
           if settings.CUSTOM_INJECTION_MARKER:
             try:
-              settings.TEST_PARAMETER = vuln_parameter
+              settings.CUSTOM_INJECTION_MARKER_PARAMETERS_LIST.append(vuln_parameter) if vuln_parameter not in settings.CUSTOM_INJECTION_MARKER_PARAMETERS_LIST else settings.CUSTOM_INJECTION_MARKER_PARAMETERS_LIST
+              settings.TESTABLE_PARAMETERS_LIST.append(vuln_parameter) if vuln_parameter not in settings.CUSTOM_INJECTION_MARKER_PARAMETERS_LIST else settings.TESTABLE_PARAMETERS_LIST
               settings.PRE_CUSTOM_INJECTION_MARKER_CHAR = result.split(settings.INJECT_TAG)[1]
             except Exception:
               pass
@@ -475,7 +503,7 @@ def vuln_POST_param(parameter, url):
 
   # Regular POST data format.
   else:
-    if re.search(r"" + settings.PARAMETER_DELIMITER + "(.*)=[\S*(\\/)]*" + settings.INJECT_TAG, parameter) or \
+    if re.search(r"" + settings.PARAMETER_DELIMITER + r"(.*)=[\S*(\\/)]*" + settings.INJECT_TAG, parameter) or \
        re.search(r"(.*)=[\S*(\\/)]*" + settings.INJECT_TAG , parameter):
       pairs = parameter.split(settings.PARAMETER_DELIMITER)
       for param in range(0,len(pairs)):
@@ -483,7 +511,8 @@ def vuln_POST_param(parameter, url):
           vuln_parameter = pairs[param].split("=")[0]
           if settings.CUSTOM_INJECTION_MARKER:
             try:
-              settings.TEST_PARAMETER = vuln_parameter
+              settings.CUSTOM_INJECTION_MARKER_PARAMETERS_LIST.append(vuln_parameter) if vuln_parameter not in settings.CUSTOM_INJECTION_MARKER_PARAMETERS_LIST else settings.CUSTOM_INJECTION_MARKER_PARAMETERS_LIST
+              settings.TESTABLE_PARAMETERS_LIST.append(vuln_parameter) if vuln_parameter not in settings.CUSTOM_INJECTION_MARKER_PARAMETERS_LIST else settings.TESTABLE_PARAMETERS_LIST
               settings.PRE_CUSTOM_INJECTION_MARKER_CHAR = pairs[param].split("=")[1].split(settings.INJECT_TAG)[1]
             except Exception:
               pass
@@ -557,7 +586,7 @@ def do_cookie_check(cookie):
   try:
     multi_parameters = cookie.split(settings.COOKIE_DELIMITER)
   except ValueError as err_msg:
-    print(settings.print_critical_msg(err_msg))
+    settings.print_data_to_stdout(settings.print_critical_msg(err_msg))
     raise SystemExit()
   # Check for inappropriate format in provided parameter(s).
   if len([s for s in multi_parameters if "=" in s]) != (len(multi_parameters)):
@@ -585,8 +614,14 @@ def do_cookie_check(cookie):
       if len(value) == 0:
         cookie = cookie + settings.INJECT_TAG
       else:
-        cookie = cookie.replace(value, value + settings.INJECT_TAG)
-    cookie = cookie.replace(settings.RANDOM_TAG, "")
+        if settings.CUSTOM_INJECTION_MARKER:
+          if settings.ASTERISK_MARKER in value:
+            cookie = cookie.replace(value, value.replace(settings.ASTERISK_MARKER, settings.INJECT_TAG))
+        else:
+          if not settings.ASTERISK_MARKER in value and not settings.CUSTOM_INJECTION_MARKER_CHAR in value:
+            cookie = cookie.replace(value, value + settings.INJECT_TAG)
+
+    cookie = cookie.replace(settings.RANDOM_TAG, "").replace(settings.ASTERISK_MARKER,"")
     return cookie
 
   # Check if multiple parameters are supplied.
@@ -617,12 +652,17 @@ def do_cookie_check(cookie):
         # Replace the value of parameter with INJECT tag
         if len(value) == 0:
           if not menu.options.skip_empty:
-            all_params[param] = ''.join(all_params[param]) + settings.INJECT_TAG
+            all_params[param] = ''.join(all_params[param] + settings.INJECT_TAG)
         else:
-          all_params[param] = ''.join(all_params[param]).replace(value, value + settings.INJECT_TAG)
+          if settings.CUSTOM_INJECTION_MARKER:
+            if settings.ASTERISK_MARKER in value:
+              all_params[param] = ''.join(all_params[param]).replace(value, value.replace(settings.ASTERISK_MARKER, settings.INJECT_TAG))
+          else:
+            if not settings.ASTERISK_MARKER in value and not settings.CUSTOM_INJECTION_MARKER_CHAR in value:
+              all_params[param] = ''.join(all_params[param]).replace(value, value + settings.INJECT_TAG)
         all_params[param - 1] = ''.join(all_params[param - 1]).replace(settings.INJECT_TAG, "")
         cookie = settings.COOKIE_DELIMITER.join(all_params)
-        cookie = cookie.replace(settings.RANDOM_TAG, "")
+        cookie = cookie.replace(settings.RANDOM_TAG, "").replace(settings.ASTERISK_MARKER,"")
         if type(cookie) != list:
           cookies_list.append(cookie)
         cookie = cookies_list
@@ -641,23 +681,24 @@ Specify the cookie parameter(s).
 """
 def specify_cookie_parameter(cookie):
   # Specify the vulnerable cookie parameter
-  if re.search(r"" + settings.COOKIE_DELIMITER + "(.*)=[\S*(\\/)]*" + settings.INJECT_TAG, cookie) or \
+  if re.search(r"" + settings.COOKIE_DELIMITER + r"(.*)=[\S*(\\/)]*" + settings.INJECT_TAG, cookie) or \
      re.search(r"(.*)=[\S*(\\/)]*" + settings.INJECT_TAG , cookie):
     pairs = cookie.split(settings.COOKIE_DELIMITER)
     for param in range(0,len(pairs)):
       if settings.INJECT_TAG in pairs[param]:
-        inject_cookie = pairs[param].split("=")[0]
+        vuln_parameter = pairs[param].split("=")[0]
         if settings.CUSTOM_INJECTION_MARKER:
           try:
-            settings.TEST_PARAMETER = inject_cookie
+            settings.CUSTOM_INJECTION_MARKER_PARAMETERS_LIST.append(vuln_parameter) if vuln_parameter not in settings.CUSTOM_INJECTION_MARKER_PARAMETERS_LIST else settings.CUSTOM_INJECTION_MARKER_PARAMETERS_LIST
+            settings.TESTABLE_PARAMETERS_LIST.append(vuln_parameter) if vuln_parameter not in settings.CUSTOM_INJECTION_MARKER_PARAMETERS_LIST else settings.TESTABLE_PARAMETERS_LIST
             settings.PRE_CUSTOM_INJECTION_MARKER_CHAR = pairs[param].split("=")[1].split(settings.INJECT_TAG)[1]
           except Exception:
             pass
         settings.TESTABLE_VALUE = pairs[param].split("=")[1].replace(settings.INJECT_TAG, "")
         break
   else:
-    inject_cookie = cookie
-  return inject_cookie
+    vuln_parameter = cookie
+  return vuln_parameter
 
 """
 The user-agent based injection.

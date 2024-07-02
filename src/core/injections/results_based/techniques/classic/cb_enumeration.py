@@ -17,6 +17,7 @@ import sys
 from src.thirdparty.six.moves import urllib as _urllib
 from src.utils import logs
 from src.utils import menu
+from src.utils import common
 from src.utils import settings
 from src.utils import session_handler
 from src.core.injections.controller import checks
@@ -159,7 +160,7 @@ def current_user(separator, TAG, prefix, suffix, whitespace, http_request_method
   checks.print_current_user(cu_account, filename, _)
 
 """
-Check if the current user has excessive privileges.
+Check if the Current user is privileged.
 """
 def check_current_user_privs(separator, TAG, prefix, suffix, whitespace, http_request_method, url, vuln_parameter, alter_shell, filename, timesec):
   _ = False
@@ -296,5 +297,32 @@ def do_check(separator, TAG, prefix, suffix, whitespace, http_request_method, ur
       checks.print_enumenation().print_passes_msg()
       system_passwords(separator, TAG, prefix, suffix, whitespace, http_request_method, url, vuln_parameter, alter_shell, filename, timesec)
     settings.ENUMERATION_DONE = True
+
+"""
+Check stored session
+"""
+def stored_session(separator, TAG, prefix, suffix, whitespace, http_request_method, url, vuln_parameter, alter_shell, filename, timesec):
+  # Check for any enumeration options.
+  new_line = True
+  if settings.ENUMERATION_DONE == True :
+    while True:
+      message = "Do you want to ignore stored session and enumerate again? [y/N] > "
+      enumerate_again = common.read_input(message, default="N", check_batch=True)
+      if enumerate_again in settings.CHOICE_YES:
+        if not menu.options.ignore_session:
+          menu.options.ignore_session = True
+        do_check(separator, TAG, prefix, suffix, whitespace, http_request_method, url, vuln_parameter, alter_shell, filename, timesec)
+        break
+      elif enumerate_again in settings.CHOICE_NO:
+        new_line = False
+        break
+      elif enumerate_again in settings.CHOICE_QUIT:
+        raise SystemExit()
+      else:
+        common.invalid_option(enumerate_again)
+        pass
+  else:
+    if menu.enumeration_options():
+      do_check(separator, TAG, prefix, suffix, whitespace, http_request_method, url, vuln_parameter, alter_shell, filename, timesec)
 
 # eof
